@@ -1,13 +1,13 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
+    style::{Color, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph},
+    widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph, Widget},
 };
 
 use crate::{
-    app::App,
+    app::{App, CurrentScreen, CurrentlyCreating},
     styles::{LIST_ITEM_SELECTED_STYLE, LIST_ITEM_STYLE, TITLE_STYLE},
 };
 
@@ -48,6 +48,27 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
         .highlight_spacing(HighlightSpacing::Always);
 
     frame.render_stateful_widget(list, chunks[1], &mut app.tree_list.state);
+
+    if let Some(creating) = &app.creating {
+        let title = match creating {
+            CurrentlyCreating::Branch => "Select branch name",
+            CurrentlyCreating::Location => "Enter worktree location",
+        };
+        let popup_block = Block::default()
+            .title(title)
+            .borders(Borders::NONE)
+            .style(Style::default().bg(Color::DarkGray));
+        let area = centered_rect(60, 20, frame.area());
+        let inner_area = popup_block.inner(area);
+        frame.render_widget(popup_block, area);
+
+        let content_text = match creating {
+            CurrentlyCreating::Location => app.worktree_location.clone(),
+            CurrentlyCreating::Branch => app.branch_name.clone(),
+        };
+        let content = Paragraph::new(content_text);
+        frame.render_widget(content, inner_area);
+    }
 }
 
 /// helper function to create a centered rect using up certain percentage of the available rect `r`

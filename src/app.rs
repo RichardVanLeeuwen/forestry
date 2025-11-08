@@ -1,38 +1,43 @@
 use git2::Repository;
 use ratatui::widgets::ListState;
 
+use crate::git::{get_repo, get_worktrees};
+
 pub enum CurrentScreen {
     Main,
+    Creating,
 }
 
-fn get_repo() -> Repository {
-    match Repository::open(".") {
-        Ok(repo) => repo,
-        Err(e) => panic!("failed to open: {}", e),
-    }
+pub enum CurrentlyCreating {
+    Location,
+    Branch,
 }
 
 pub struct App {
     pub current_screen: CurrentScreen,
     pub root: Repository,
     pub tree_list: TreeList,
+    pub branch_name: String,
+    pub worktree_location: String,
+    pub creating: Option<CurrentlyCreating>,
 }
 
 impl App {
-    pub fn new() -> App {
-        let root = get_repo();
-        App {
+    pub fn new() -> Result<App, git2::Error> {
+        let root = get_repo()?;
+        Ok(App {
             current_screen: CurrentScreen::Main,
-            tree_list: TreeList::new(&root),
+            tree_list: TreeList::new(&root)?,
+            branch_name: String::new(),
+            worktree_location: String::new(),
+            creating: None,
             root,
-        }
+        })
     }
 }
 
 pub struct ListTree {
-    pub branch: String,
     pub location: String,
-    pub imaginary: bool,
 }
 
 pub struct TreeList {
@@ -41,41 +46,13 @@ pub struct TreeList {
 }
 
 impl TreeList {
-    pub fn new(repo: &Repository) -> TreeList {
-        let trees = repo.worktrees().expect("Expected to find worktrees");
-        let list_trees = trees
-            .iter()
-            .flatten()
-            .map(|tree_name| {
-                let tree = repo
-                    .find_worktree(tree_name)
-                    .expect("Expected tree to have a name");
-                let tree_repo = Repository::open(tree.path().to_path_buf())
-                    .expect("Expected tree to belong to a repo");
-                let branch = tree_repo
-                    .head()
-                    .ok()
-                    .as_ref()
-                    .and_then(|h| h.target())
-                    .map(|oid| oid.to_string())
-                    .expect("Expected a branch");
-                ListTree {
-                    branch,
-                    location: tree
-                        .path()
-                        .to_path_buf()
-                        .into_os_string()
-                        .into_string()
-                        .expect("Expected a location"),
-                    imaginary: false,
-                }
-            })
-            .collect();
+    pub fn new(repo: &Repository) -> Result<TreeList, git2::Error> {
+        let list_trees = get_worktrees(repo)?;
         let mut state = ListState::default();
         state.select_first();
-        TreeList {
+        Ok(TreeList {
             items: list_trees,
             state,
-        }
+        })
     }
 }
