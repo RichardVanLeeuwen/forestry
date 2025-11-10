@@ -1,55 +1,43 @@
-use std::{io, mem};
+use std::mem;
 
-use color_eyre::Result;
-use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
-use ratatui::{
-    Terminal,
-    prelude::{Backend, CrosstermBackend},
-};
+use crossterm::event::{self, Event, KeyCode};
+use ratatui::{Terminal, prelude::Backend};
 mod app;
+mod error;
 mod git;
 mod styles;
 mod ui;
 
-use crate::app::{App, CurrentScreen, TreeList};
 use crate::{app::CurrentlyCreating, git::create_worktree, ui::ui};
+use crate::{
+    app::{App, CurrentScreen, TreeList},
+    error::Result,
+    git::remove_worktree,
+};
 
 fn main() -> Result<()> {
-    color_eyre::install()?;
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    let mut terminal = ratatui::init();
+    set_panic_hook();
 
     let mut app = App::new()?;
     let _res = run_app(&mut terminal, &mut app);
 
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+    ratatui::restore();
 
-    // Todo! log and print the steps taken so the user gets a recap.
-    // if let Ok(do_print) = res {
-    //     if do_print {
-    //         app.print_json()?;
-    //     }
-    // } else if let Err(err) = res {
-    //     println!("{err:?}");
-    // }
+    app.logging.iter().for_each(|log| println!("{}", log));
 
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool, git2::Error> {
+fn set_panic_hook() {
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = ratatui::restore(); // ignore any errors as we are already failing
+        hook(panic_info);
+    }));
+}
+
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool> {
     loop {
         terminal.draw(|f| ui(f, app)).unwrap();
 
@@ -75,6 +63,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                     KeyCode::Char('c') | KeyCode::Char('+') => {
                         app.creating = Some(CurrentlyCreating::Branch);
                         app.current_screen = CurrentScreen::Creating;
+                    }
+                    KeyCode::Char('d') => {
+                        let tree = app
+                            .tree_list
+                            .items
+                            .get(app.tree_list.state.selected().unwrap());
+                        remove_worktree(app, tree.unwrap().name.clone())?;
                     }
                     _ => {}
                 },

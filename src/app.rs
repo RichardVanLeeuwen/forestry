@@ -1,6 +1,7 @@
 use git2::Repository;
 use ratatui::widgets::ListState;
 
+use crate::error::Result;
 use crate::git::{get_repo, get_worktrees};
 
 pub enum CurrentScreen {
@@ -20,10 +21,11 @@ pub struct App {
     pub branch_name: String,
     pub worktree_location: String,
     pub creating: Option<CurrentlyCreating>,
+    pub logging: Vec<String>,
 }
 
 impl App {
-    pub fn new() -> Result<App, git2::Error> {
+    pub fn new() -> Result<App> {
         let root = get_repo()?;
         Ok(App {
             current_screen: CurrentScreen::Main,
@@ -32,12 +34,14 @@ impl App {
             worktree_location: String::new(),
             creating: None,
             root,
+            logging: Vec::new(),
         })
     }
 }
 
 pub struct ListTree {
     pub location: String,
+    pub name: String,
 }
 
 pub struct TreeList {
@@ -46,7 +50,7 @@ pub struct TreeList {
 }
 
 impl TreeList {
-    pub fn new(repo: &Repository) -> Result<TreeList, git2::Error> {
+    pub fn new(repo: &Repository) -> Result<TreeList> {
         let list_trees = get_worktrees(repo)?;
         let mut state = ListState::default();
         state.select_first();

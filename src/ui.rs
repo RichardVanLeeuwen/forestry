@@ -3,11 +3,11 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph, Widget},
+    widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph},
 };
 
 use crate::{
-    app::{App, CurrentScreen, CurrentlyCreating},
+    app::{App, CurrentlyCreating},
     styles::{LIST_ITEM_SELECTED_STYLE, LIST_ITEM_STYLE, TITLE_STYLE},
 };
 
