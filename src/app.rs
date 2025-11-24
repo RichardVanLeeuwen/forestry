@@ -1,5 +1,6 @@
 use git2::Repository;
 use ratatui::widgets::ListState;
+use tui_input::Input;
 
 use crate::error::Result;
 use crate::git::{get_repo, get_worktrees};
@@ -18,8 +19,8 @@ pub struct App {
     pub current_screen: CurrentScreen,
     pub root: Repository,
     pub tree_list: TreeList,
-    pub branch_name: String,
-    pub worktree_location: String,
+    pub branch_name: Input,
+    pub worktree_location: Input,
     pub creating: Option<CurrentlyCreating>,
     pub logging: Vec<String>,
 }
@@ -30,8 +31,8 @@ impl App {
         Ok(App {
             current_screen: CurrentScreen::Main,
             tree_list: TreeList::new(&root)?,
-            branch_name: String::new(),
-            worktree_location: String::new(),
+            branch_name: Input::default(),
+            worktree_location: Input::default(),
             creating: None,
             root,
             logging: Vec::new(),

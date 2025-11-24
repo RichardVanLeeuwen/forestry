@@ -1,9 +1,9 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph},
+    widgets::{Block, BorderType, Borders, HighlightSpacing, List, ListItem, Paragraph},
 };
 
 use crate::{
@@ -16,6 +16,7 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
+            Constraint::Length(2),
             Constraint::Min(1),
             Constraint::Length(3),
         ])
@@ -29,10 +30,38 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
         "Forestry, manage your git worktree forest",
         TITLE_STYLE,
     ))
-    .alignment(ratatui::layout::Alignment::Center)
+    .alignment(Alignment::Center)
     .block(title_block);
 
     frame.render_widget(title, chunks[0]);
+
+    let root_block = Block::default()
+        .borders(Borders::NONE)
+        .style(Style::default());
+    let main_tree_text = Paragraph::new(Text::styled(
+        format!(
+            "Main git tree location: {}",
+            app.root
+                .commondir()
+                .parent()
+                .expect("Root directory not found")
+                .to_path_buf()
+                .into_os_string()
+                .into_string()
+                .expect("Root location not found")
+        ),
+        TITLE_STYLE,
+    ))
+    .alignment(Alignment::Left)
+    .block(root_block);
+
+    frame.render_widget(
+        main_tree_text,
+        chunks[1].inner(Margin {
+            horizontal: 1,
+            vertical: 0,
+        }),
+    );
 
     // render the main block
     let mut list_items = Vec::<ListItem>::new();
@@ -47,7 +76,14 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
         .highlight_symbol(">")
         .highlight_spacing(HighlightSpacing::Always);
 
-    frame.render_stateful_widget(list, chunks[1], &mut app.tree_list.state);
+    frame.render_stateful_widget(
+        list,
+        chunks[2].inner(Margin {
+            horizontal: 1,
+            vertical: 0,
+        }),
+        &mut app.tree_list.state,
+    );
 
     if let Some(creating) = &app.creating {
         let title = match creating {
@@ -56,18 +92,25 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
         };
         let popup_block = Block::default()
             .title(title)
-            .borders(Borders::NONE)
-            .style(Style::default().bg(Color::DarkGray));
+            .border_style(Style::default().fg(Color::Yellow))
+            .border_type(BorderType::Rounded)
+            .borders(Borders::ALL)
+            .style(Style::default());
         let area = centered_rect(60, 20, frame.area());
         let inner_area = popup_block.inner(area);
         frame.render_widget(popup_block, area);
 
         let content_text = match creating {
-            CurrentlyCreating::Location => app.worktree_location.clone(),
-            CurrentlyCreating::Branch => app.branch_name.clone(),
+            CurrentlyCreating::Location => app.worktree_location.value(),
+            CurrentlyCreating::Branch => app.branch_name.value(),
         };
-        let content = Paragraph::new(content_text);
+        let content = Paragraph::new(content_text).style(Style::default().fg(Color::Yellow));
         frame.render_widget(content, inner_area);
+        let x = match creating {
+            CurrentlyCreating::Location => app.worktree_location.visual_cursor(),
+            CurrentlyCreating::Branch => app.branch_name.visual_cursor(),
+        } + 1;
+        frame.set_cursor_position((area.x + x as u16, area.y + 1))
     }
 }
 

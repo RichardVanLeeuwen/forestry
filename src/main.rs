@@ -1,7 +1,7 @@
-use std::mem;
-
-use crossterm::event::{self, Event, KeyCode};
+use ratatui::crossterm::event::{self, Event, KeyCode};
 use ratatui::{Terminal, prelude::Backend};
+use tui_input::Input;
+use tui_input::backend::crossterm::EventHandler;
 mod app;
 mod error;
 mod git;
@@ -17,7 +17,6 @@ use crate::{
 
 fn main() -> Result<()> {
     let mut terminal = ratatui::init();
-    set_panic_hook();
 
     let mut app = App::new()?;
     let _res = run_app(&mut terminal, &mut app);
@@ -29,20 +28,13 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn set_panic_hook() {
-    let hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |panic_info| {
-        let _ = ratatui::restore(); // ignore any errors as we are already failing
-        hook(panic_info);
-    }));
-}
-
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool> {
     loop {
         terminal.draw(|f| ui(f, app)).unwrap();
 
+        let event = event::read()?;
         // on key events
-        if let Event::Key(key) = event::read().unwrap() {
+        if let Event::Key(key) = event {
             // that are not releases
             if key.kind == event::KeyEventKind::Release {
                 continue;
@@ -63,6 +55,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                     KeyCode::Char('c') | KeyCode::Char('+') => {
                         app.creating = Some(CurrentlyCreating::Branch);
                         app.current_screen = CurrentScreen::Creating;
+                        app.branch_name = Input::default();
                     }
                     KeyCode::Char('d') => {
                         let tree = app
@@ -92,14 +85,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                         if let Some(creating) = &app.creating {
                             match creating {
                                 CurrentlyCreating::Branch => {
-                                    app.worktree_location = format!("../{}", app.branch_name);
+                                    app.worktree_location = Input::default()
+                                        .with_value(format!("../{}", app.branch_name.value()));
                                     app.creating = Some(CurrentlyCreating::Location);
                                 }
                                 CurrentlyCreating::Location => {
-                                    let branch_name =
-                                        mem::replace(&mut app.branch_name, String::new());
-                                    let worktree_location =
-                                        mem::replace(&mut app.worktree_location, String::new());
+                                    let branch_name = app.branch_name.value_and_reset();
+                                    let worktree_location = app.worktree_location.value_and_reset();
                                     create_worktree(branch_name, worktree_location)?;
                                     app.tree_list = TreeList::new(&app.root)?;
                                     app.creating = None;
@@ -108,23 +100,18 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                             }
                         }
                     }
-                    KeyCode::Backspace => {
+                    _ => {
                         if let Some(creating) = &app.creating {
                             match creating {
-                                CurrentlyCreating::Branch => app.branch_name.pop(),
-                                CurrentlyCreating::Location => app.worktree_location.pop(),
+                                CurrentlyCreating::Branch => {
+                                    app.branch_name.handle_event(&event);
+                                }
+                                CurrentlyCreating::Location => {
+                                    app.worktree_location.handle_event(&event);
+                                }
                             };
                         }
                     }
-                    KeyCode::Char(char) => {
-                        if let Some(creating) = &app.creating {
-                            match creating {
-                                CurrentlyCreating::Branch => app.branch_name.push(char),
-                                CurrentlyCreating::Location => app.worktree_location.push(char),
-                            };
-                        }
-                    }
-                    _ => {}
                 },
                 // add other screens
             }
