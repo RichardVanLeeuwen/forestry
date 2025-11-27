@@ -55,7 +55,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                     KeyCode::Char('c') | KeyCode::Char('+') => {
                         app.creating = Some(CurrentlyCreating::Branch);
                         app.current_screen = CurrentScreen::Creating;
-                        app.branch_name = Input::default();
+                        app.branch_input = Input::default();
                     }
                     KeyCode::Char('d') => {
                         let tree = app
@@ -79,20 +79,29 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                                 }
                             }
                         }
-                        app.current_screen = CurrentScreen::Main;
                     }
                     KeyCode::Enter => {
                         if let Some(creating) = &app.creating {
                             match creating {
                                 CurrentlyCreating::Branch => {
-                                    app.worktree_location = Input::default()
-                                        .with_value(format!("../{}", app.branch_name.value()));
+                                    let branch_name =
+                                        if app.branch_list.state.selected().unwrap() == 0 {
+                                            app.branch_input.value()
+                                        } else {
+                                            app.branch_list
+                                                .items
+                                                .get(app.branch_list.state.selected().unwrap())
+                                                .unwrap()
+                                        };
+                                    app.worktree_location =
+                                        Input::default().with_value(format!("../{}", branch_name));
+                                    app.branch_name = branch_name.to_string();
                                     app.creating = Some(CurrentlyCreating::Location);
                                 }
                                 CurrentlyCreating::Location => {
-                                    let branch_name = app.branch_name.value_and_reset();
+                                    let branch_input = app.branch_input.value_and_reset();
                                     let worktree_location = app.worktree_location.value_and_reset();
-                                    create_worktree(branch_name, worktree_location)?;
+                                    create_worktree(branch_input, worktree_location)?;
                                     app.tree_list = TreeList::new(&app.root)?;
                                     app.creating = None;
                                     app.current_screen = CurrentScreen::Main;
@@ -100,11 +109,17 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                             }
                         }
                     }
+                    KeyCode::Down => {
+                        app.branch_list.state.select_next();
+                    }
+                    KeyCode::Up => {
+                        app.branch_list.state.select_previous();
+                    }
                     _ => {
                         if let Some(creating) = &app.creating {
                             match creating {
                                 CurrentlyCreating::Branch => {
-                                    app.branch_name.handle_event(&event);
+                                    app.branch_input.handle_event(&event);
                                 }
                                 CurrentlyCreating::Location => {
                                     app.worktree_location.handle_event(&event);

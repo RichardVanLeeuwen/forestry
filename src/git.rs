@@ -32,6 +32,14 @@ pub fn get_worktrees(repo: &Repository) -> Result<Vec<ListTree>> {
     Ok(list_trees)
 }
 
+pub fn get_branches(repo: &Repository) -> Result<Vec<String>> {
+    let branches = repo.branches(None)?;
+    Ok(branches
+        .filter_map(|b| b.ok())
+        .filter_map(|(branch, _)| branch.name().ok().flatten().map(String::from))
+        .collect::<Vec<String>>())
+}
+
 pub fn create_worktree(branch: String, location: String) -> Result<Worktree> {
     let repo = get_repo().unwrap();
     let add_opts = WorktreeAddOptions::new();

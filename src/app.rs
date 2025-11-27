@@ -3,7 +3,7 @@ use ratatui::widgets::ListState;
 use tui_input::Input;
 
 use crate::error::Result;
-use crate::git::{get_repo, get_worktrees};
+use crate::git::{get_branches, get_repo, get_worktrees};
 
 pub enum CurrentScreen {
     Main,
@@ -18,9 +18,11 @@ pub enum CurrentlyCreating {
 pub struct App {
     pub current_screen: CurrentScreen,
     pub root: Repository,
-    pub tree_list: TreeList,
-    pub branch_name: Input,
+    pub branch_name: String,
+    pub branch_input: Input,
+    pub branch_list: BranchList,
     pub worktree_location: Input,
+    pub tree_list: TreeList,
     pub creating: Option<CurrentlyCreating>,
     pub logging: Vec<String>,
 }
@@ -30,9 +32,11 @@ impl App {
         let root = get_repo()?;
         Ok(App {
             current_screen: CurrentScreen::Main,
-            tree_list: TreeList::new(&root)?,
-            branch_name: Input::default(),
+            branch_name: "".to_string(),
+            branch_input: Input::default(),
+            branch_list: BranchList::new(&root)?,
             worktree_location: Input::default(),
+            tree_list: TreeList::new(&root)?,
             creating: None,
             root,
             logging: Vec::new(),
@@ -57,6 +61,23 @@ impl TreeList {
         state.select_first();
         Ok(TreeList {
             items: list_trees,
+            state,
+        })
+    }
+}
+
+pub struct BranchList {
+    pub items: Vec<String>,
+    pub state: ListState,
+}
+
+impl BranchList {
+    pub fn new(repo: &Repository) -> Result<BranchList> {
+        let branches = get_branches(repo)?;
+        let mut state = ListState::default();
+        state.select_first();
+        Ok(BranchList {
+            items: branches,
             state,
         })
     }

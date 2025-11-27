@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Style},
     text::{Line, Span, Text},
-    widgets::{Block, BorderType, Borders, HighlightSpacing, List, ListItem, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, HighlightSpacing, List, ListItem, Paragraph},
 };
 
 use crate::{
@@ -95,22 +95,51 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
             .border_style(Style::default().fg(Color::Yellow))
             .border_type(BorderType::Rounded)
             .borders(Borders::ALL)
-            .style(Style::default());
+            .style(Style::default().fg(Color::Yellow));
         let area = centered_rect(60, 20, frame.area());
         let inner_area = popup_block.inner(area);
+
+        frame.render_widget(Clear, area);
         frame.render_widget(popup_block, area);
 
         let content_text = match creating {
             CurrentlyCreating::Location => app.worktree_location.value(),
-            CurrentlyCreating::Branch => app.branch_name.value(),
+            CurrentlyCreating::Branch => app.branch_input.value(),
         };
-        let content = Paragraph::new(content_text).style(Style::default().fg(Color::Yellow));
-        frame.render_widget(content, inner_area);
+
+        match creating {
+            CurrentlyCreating::Branch => {
+                // render the list of all existing branches
+                let mut list_items = Vec::<ListItem>::new();
+                list_items.push(ListItem::new(Line::from(Span::styled(
+                    content_text,
+                    LIST_ITEM_STYLE,
+                ))));
+                for branch in &app.branch_list.items {
+                    if branch.contains(content_text) {
+                        list_items.push(ListItem::new(Line::from(Span::styled(
+                            branch.clone(),
+                            LIST_ITEM_STYLE,
+                        ))));
+                    }
+                }
+                let list = List::new(list_items)
+                    .highlight_style(LIST_ITEM_SELECTED_STYLE)
+                    .highlight_symbol(">")
+                    .highlight_spacing(HighlightSpacing::Always);
+
+                frame.render_stateful_widget(list, inner_area, &mut app.branch_list.state);
+            }
+            CurrentlyCreating::Location => {
+                let paragraph = Paragraph::new(content_text).style(LIST_ITEM_STYLE);
+                frame.render_widget(paragraph, inner_area);
+            }
+        }
         let x = match creating {
             CurrentlyCreating::Location => app.worktree_location.visual_cursor(),
-            CurrentlyCreating::Branch => app.branch_name.visual_cursor(),
-        } + 1;
-        frame.set_cursor_position((area.x + x as u16, area.y + 1))
+            CurrentlyCreating::Branch => app.branch_input.visual_cursor(),
+        } + 2; // 1 for the margin, 1 for the arrow indicator
+        frame.set_cursor_position((area.x + x as u16, area.y + 1));
     }
 }
 
