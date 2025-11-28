@@ -135,10 +135,13 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
                 frame.render_widget(paragraph, inner_area);
             }
         }
-        let x = match creating {
+        let mut x = match creating {
             CurrentlyCreating::Location => app.worktree_location.visual_cursor(),
             CurrentlyCreating::Branch => app.branch_input.visual_cursor(),
-        } + 2; // 1 for the margin, 1 for the arrow indicator
+        } + 1;
+        if let CurrentlyCreating::Branch = creating {
+            x += 1;
+        }
         frame.set_cursor_position((area.x + x as u16, area.y + 1));
     }
 }
