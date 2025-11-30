@@ -90,7 +90,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                                         } else {
                                             app.branch_list
                                                 .items
-                                                .get(app.branch_list.state.selected().unwrap())
+                                                .iter()
+                                                .filter(|b| b.contains(app.branch_input.value()))
+                                                .take(app.branch_list.state.selected().unwrap())
+                                                .last()
                                                 .unwrap()
                                         };
                                     app.worktree_location =
