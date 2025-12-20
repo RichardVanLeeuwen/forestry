@@ -8,6 +8,7 @@ mod git;
 mod styles;
 mod ui;
 
+use crate::git::fetch_origin;
 use crate::{app::CurrentlyCreating, git::create_worktree, ui::ui};
 use crate::{
     app::{App, CurrentScreen, TreeList},
@@ -16,14 +17,18 @@ use crate::{
 };
 
 fn main() -> Result<()> {
+    color_eyre::install().unwrap();
     let mut terminal = ratatui::init();
 
     let mut app = App::new()?;
-    let _res = run_app(&mut terminal, &mut app);
+    let res = run_app(&mut terminal, &mut app);
 
     ratatui::restore();
 
     app.logging.iter().for_each(|log| println!("{}", log));
+    if let Err(err) = res {
+        dbg!(err);
+    }
 
     Ok(())
 }
@@ -58,11 +63,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                         app.branch_input = Input::default();
                     }
                     KeyCode::Char('d') => {
-                        let tree = app
-                            .tree_list
-                            .items
-                            .get(app.tree_list.state.selected().unwrap());
-                        remove_worktree(app, tree.unwrap().name.clone())?;
+                        app.current_screen = CurrentScreen::Deleting;
                     }
                     _ => {}
                 },
@@ -131,7 +132,53 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool
                         }
                     }
                 },
-                // add other screens
+                CurrentScreen::Deleting => {
+                    if app.ask_force_delete {
+                        // forcing the delete only on input y
+                        match key.code {
+                            KeyCode::Char('y') => {
+                                let tree = app
+                                    .tree_list
+                                    .items
+                                    .get(app.tree_list.state.selected().unwrap());
+                                remove_worktree(app, tree.unwrap().name.clone(), true)?;
+                                fetch_origin(&app.root)?;
+                                app.refresh_branchlist()?;
+                                app.current_screen = CurrentScreen::Main;
+                                app.ask_force_delete = false;
+                            }
+                            KeyCode::Enter | KeyCode::Esc | KeyCode::Char('n') => {
+                                app.current_screen = CurrentScreen::Main;
+                                app.ask_force_delete = false;
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        // not force deleting, accepting both enter and y to delete
+                        match key.code {
+                            KeyCode::Enter | KeyCode::Char('y') => {
+                                let tree = app
+                                    .tree_list
+                                    .items
+                                    .get(app.tree_list.state.selected().unwrap());
+                                let remove_result =
+                                    remove_worktree(app, tree.unwrap().name.clone(), false);
+                                if remove_result.is_err() {
+                                    app.ask_force_delete = true;
+                                } else {
+                                    fetch_origin(&app.root)?;
+                                    app.refresh_branchlist()?;
+                                    app.current_screen = CurrentScreen::Main;
+                                }
+                            }
+                            KeyCode::Esc | KeyCode::Char('n') => {
+                                app.current_screen = CurrentScreen::Main;
+                                app.ask_force_delete = false;
+                            }
+                            _ => {}
+                        } // add other screens
+                    }
+                }
             }
         }
     }

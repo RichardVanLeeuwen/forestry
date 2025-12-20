@@ -19,7 +19,7 @@ fn make_creation_popup(frame: &mut Frame, title: &str) -> Rect {
         .border_type(BorderType::Rounded)
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::Yellow));
-    let area = centered_rect(60, 20, frame.area());
+    let area = centered_rect(70, 40, frame.area());
     let inner_rect = popup_block.inner(area);
 
     frame.render_widget(Clear, area);

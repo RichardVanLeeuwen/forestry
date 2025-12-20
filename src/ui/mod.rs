@@ -7,14 +7,16 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, CurrentlyCreating},
+    app::{App, CurrentScreen, CurrentlyCreating},
     styles::TITLE_STYLE,
     ui::{
         creation_popup::{render_branch_input_popup, render_location_input_popup},
+        delete_popup::render_delete_popup,
         main_screen::{render_branch_list, render_root_location},
     },
 };
 mod creation_popup;
+mod delete_popup;
 mod main_screen;
 mod util;
 
@@ -50,5 +52,8 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
             CurrentlyCreating::Branch => render_branch_input_popup(frame, app),
             CurrentlyCreating::Location => render_location_input_popup(frame, app),
         }
+    }
+    if let CurrentScreen::Deleting = app.current_screen {
+        render_delete_popup(frame, app);
     }
 }

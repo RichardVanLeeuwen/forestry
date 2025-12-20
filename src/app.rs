@@ -8,6 +8,7 @@ use crate::git::{get_branches, get_repo, get_worktrees};
 pub enum CurrentScreen {
     Main,
     Creating,
+    Deleting,
 }
 
 pub enum CurrentlyCreating {
@@ -25,6 +26,7 @@ pub struct App {
     pub tree_list: TreeList,
     pub creating: Option<CurrentlyCreating>,
     pub logging: Vec<String>,
+    pub ask_force_delete: bool,
 }
 
 impl App {
@@ -40,7 +42,12 @@ impl App {
             creating: None,
             root,
             logging: Vec::new(),
+            ask_force_delete: false,
         })
+    }
+    pub fn refresh_branchlist(self: &mut App) -> Result<()> {
+        self.tree_list = TreeList::new(&self.root)?;
+        Ok(())
     }
 }
 
