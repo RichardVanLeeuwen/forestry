@@ -1,20 +1,20 @@
 use std::{fs, path::Path};
 
 use auth_git2::GitAuthenticator;
+use color_eyre::eyre::{Report, eyre};
 use git2::{
     FetchOptions, RemoteCallbacks, Repository, Worktree, WorktreeAddOptions, WorktreePruneOptions,
 };
 
 use crate::app::{App, ListTree};
-use crate::error::{Error::UncommittedChanges, Result};
 
-pub fn get_repo() -> Result<Repository> {
-    Ok(Repository::open(".")?)
+pub fn get_repo() -> Repository {
+    Repository::open(".").unwrap()
 }
 
-pub fn get_worktrees(repo: &Repository) -> Result<Vec<ListTree>> {
+pub fn get_worktrees(repo: &Repository) -> Vec<ListTree> {
     let trees = repo.worktrees().expect("Expected to find worktrees");
-    let list_trees = trees
+    trees
         .iter()
         .flatten()
         .map(|tree_name| {
@@ -31,25 +31,29 @@ pub fn get_worktrees(repo: &Repository) -> Result<Vec<ListTree>> {
                     .expect("Expected a location"),
             }
         })
-        .collect();
-    Ok(list_trees)
+        .collect()
 }
 
-pub fn get_branches(repo: &Repository) -> Result<Vec<String>> {
-    let branches = repo.branches(None)?;
-    Ok(branches
+pub fn get_branches(repo: &Repository) -> Vec<String> {
+    let branches = repo.branches(None).unwrap();
+    branches
         .filter_map(|b| b.ok())
         .filter_map(|(branch, _)| branch.name().ok().flatten().map(String::from))
-        .collect::<Vec<String>>())
+        .collect::<Vec<String>>()
 }
 
-pub fn create_worktree(branch: String, location: String) -> Result<Worktree> {
-    let repo = get_repo().unwrap();
+pub fn create_worktree(branch: String, location: String) -> Worktree {
+    let repo = get_repo();
     let add_opts = WorktreeAddOptions::new();
-    Ok(repo.worktree(&*branch, Path::new(&location), Some(&add_opts))?)
+    repo.worktree(&*branch, Path::new(&location), Some(&add_opts))
+        .expect("Worktree should be created")
 }
 
-pub fn remove_worktree(app: &mut App, tree_name: String, force: bool) -> Result<()> {
+pub fn remove_worktree(
+    app: &mut App,
+    tree_name: String,
+    force: bool,
+) -> color_eyre::Result<(), Report> {
     let tree = app.root.find_worktree(&tree_name)?;
     let path = tree.path().to_path_buf();
     if path.exists() && !force {
@@ -57,7 +61,7 @@ pub fn remove_worktree(app: &mut App, tree_name: String, force: bool) -> Result<
 
         let status = tree_repo.statuses(None)?;
         if !status.is_empty() {
-            return Err(UncommittedChanges);
+            return Err(eyre!("Worktree state is not clean"));
         }
     }
 
@@ -72,7 +76,7 @@ pub fn remove_worktree(app: &mut App, tree_name: String, force: bool) -> Result<
     Ok(())
 }
 
-pub fn fetch_origin(repo: &Repository) -> Result<()> {
+pub fn fetch_origin(repo: &Repository) -> color_eyre::Result<()> {
     let mut origin = repo.find_remote("origin")?;
     let git_config = git2::Config::open_default()?;
     let auth = GitAuthenticator::default();

@@ -1,9 +1,14 @@
+use crossterm::event::{KeyEvent, KeyEventKind};
 use git2::Repository;
+use ratatui::Terminal;
+use ratatui::prelude::Backend;
 use ratatui::widgets::ListState;
 use tui_input::Input;
 
-use crate::error::Result;
+use crate::event::{AppEvent, Event, EventHandler};
 use crate::git::{get_branches, get_repo, get_worktrees};
+use crate::keymapping::mapkey;
+use crate::ui::ui;
 
 pub enum CurrentScreen {
     Main,
@@ -17,6 +22,8 @@ pub enum CurrentlyCreating {
 }
 
 pub struct App {
+    pub running: bool,
+    pub events: EventHandler,
     pub current_screen: CurrentScreen,
     pub root: Repository,
     pub branch_name: String,
@@ -25,30 +32,86 @@ pub struct App {
     pub worktree_location: Input,
     pub tree_list: TreeList,
     pub creating: Option<CurrentlyCreating>,
-    pub logging: Vec<String>,
     pub ask_force_delete: bool,
 }
 
-impl App {
-    pub fn new() -> Result<App> {
-        let root = get_repo()?;
-        Ok(App {
+impl Default for App {
+    fn default() -> Self {
+        let root = get_repo();
+        Self {
+            running: true,
+            events: EventHandler::new(),
             current_screen: CurrentScreen::Main,
             branch_name: "".to_string(),
             branch_input: Input::default(),
-            branch_list: BranchList::new(&root)?,
+            branch_list: BranchList::new(&root),
             worktree_location: Input::default(),
-            tree_list: TreeList::new(&root)?,
+            tree_list: TreeList::new(&root),
             creating: None,
             root,
-            logging: Vec::new(),
             ask_force_delete: false,
-        })
+        }
     }
-    pub fn refresh_branchlist(self: &mut App) -> Result<()> {
-        self.tree_list = TreeList::new(&self.root)?;
+}
+
+impl App {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn run<B: Backend>(mut self, mut terminal: Terminal<B>) -> color_eyre::Result<()> {
+        while self.running {
+            terminal.draw(|frame| ui(frame, &mut self));
+            match self.events.next().await? {
+                Event::Tick => self.tick(),
+                Event::Crossterm(event) => match event {
+                    crossterm::event::Event::Key(key_event)
+                        if key_event.kind == KeyEventKind::Press =>
+                    {
+                        self.handle_key_events(key_event)?
+                    }
+                    _ => {}
+                },
+                Event::App(app_event) => match app_event {
+                    AppEvent::Quit => self.quit(),
+                    AppEvent::TreelistUp => self.treelist_up(),
+                    AppEvent::TreelistDown => self.treelist_down(),
+                    AppEvent::CreateTree => self.create_tree(),
+                    AppEvent::DeleteTree => self.delete_tree(),
+                },
+            }
+        }
         Ok(())
     }
+
+    pub fn handle_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
+        mapkey(self, key_event.code);
+        Ok(())
+    }
+
+    fn quit(&mut self) {
+        self.running = false;
+    }
+
+    fn treelist_up(&mut self) {
+        self.tree_list.state.select_previous();
+    }
+
+    fn treelist_down(&mut self) {
+        self.tree_list.state.select_next();
+    }
+
+    fn create_tree(&mut self) {
+        self.creating = Some(CurrentlyCreating::Branch);
+        self.current_screen = CurrentScreen::Creating;
+        self.branch_input = Input::default();
+    }
+
+    fn delete_tree(&mut self) {
+        self.current_screen = CurrentScreen::Deleting;
+    }
+
+    pub fn tick(&self) {}
 }
 
 pub struct ListTree {
@@ -62,14 +125,14 @@ pub struct TreeList {
 }
 
 impl TreeList {
-    pub fn new(repo: &Repository) -> Result<TreeList> {
-        let list_trees = get_worktrees(repo)?;
+    pub fn new(repo: &Repository) -> TreeList {
+        let list_trees = get_worktrees(repo);
         let mut state = ListState::default();
         state.select_first();
-        Ok(TreeList {
+        TreeList {
             items: list_trees,
             state,
-        })
+        }
     }
 }
 
@@ -79,13 +142,13 @@ pub struct BranchList {
 }
 
 impl BranchList {
-    pub fn new(repo: &Repository) -> Result<BranchList> {
-        let branches = get_branches(repo)?;
+    pub fn new(repo: &Repository) -> BranchList {
+        let branches = get_branches(repo);
         let mut state = ListState::default();
         state.select_first();
-        Ok(BranchList {
+        BranchList {
             items: branches,
             state,
-        })
+        }
     }
 }
