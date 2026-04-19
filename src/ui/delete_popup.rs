@@ -20,6 +20,21 @@ pub fn render_delete_popup(frame: &mut Frame, app: &mut App) {
         horizontal: 1,
         vertical: 1,
     });
+    if app.deletion_in_progress {
+        let full = throbber_widgets_tui::Throbber::default()
+            .label("Deleting worktree in progress")
+            .style(POPUP_TEXT_STYLE)
+            .throbber_style(
+                ratatui::style::Style::default()
+                    .fg(ratatui::style::Color::Yellow)
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            )
+            .throbber_set(throbber_widgets_tui::BRAILLE_SIX);
+        frame.render_widget(Clear, area);
+        frame.render_widget(popup_block, area);
+        frame.render_stateful_widget(full, inner_rect, &mut app.throbber_state);
+        return;
+    }
     let firstline = if app.ask_force_delete {
         "Deletion failed, likely due to changes in the tree. Do you want to force remove the tree, destroying uncommitted changes?"
     } else {

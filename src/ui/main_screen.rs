@@ -8,20 +8,14 @@ use ratatui::{
 use crate::{
     app::App,
     styles::{LIST_ITEM_SELECTED_STYLE, LIST_ITEM_STYLE, TITLE_STYLE},
+    ui::util::{get_path_from_tree, shorten_home},
 };
 
 pub fn render_root_location(frame: &mut Frame, app: &mut App, chunk: Rect) {
     let main_tree_text = Paragraph::new(Text::styled(
         format!(
             "Main git tree location: {}",
-            app.root
-                .commondir()
-                .parent()
-                .expect("Root directory not found")
-                .to_path_buf()
-                .into_os_string()
-                .into_string()
-                .expect("Root location not found")
+            shorten_home(&app.root_location)
         ),
         TITLE_STYLE,
     ))
@@ -40,7 +34,7 @@ pub fn render_branch_list(frame: &mut Frame, app: &mut App, chunk: Rect) {
     let mut list_items = Vec::<ListItem>::new();
     for tree in &app.tree_list.items {
         list_items.push(ListItem::new(Line::from(Span::styled(
-            tree.location.clone(),
+            shorten_home(get_path_from_tree(tree)),
             LIST_ITEM_STYLE,
         ))));
     }

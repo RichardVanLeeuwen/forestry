@@ -9,7 +9,7 @@ use ratatui::{
 use crate::{
     app::App,
     styles::{LIST_ITEM_SELECTED_STYLE, LIST_ITEM_STYLE},
-    ui::util::centered_rect,
+    ui::util::{centered_rect, shorten_home},
 };
 
 fn make_creation_popup(frame: &mut Frame, title: &str) -> Rect {
@@ -41,7 +41,7 @@ pub fn render_branch_input_popup(frame: &mut Frame, app: &mut App) {
         .filter(|b| b.contains(content_text))
         .for_each(|branch| {
             list_items.push(ListItem::new(Line::from(Span::styled(
-                branch.clone(),
+                shorten_home(branch),
                 LIST_ITEM_STYLE,
             ))))
         });

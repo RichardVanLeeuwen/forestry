@@ -9,3 +9,5 @@ Git worktrees quickly became my favorite git function!
 ## Why forestry?
 I'm decently skilled with the terminal, but not everyone is. Forestry is an attempt to make the power of worktrees more accessible to people who don't live in the terminal.
 
+## Sources
+[Event driven architecture](https://github.com/ratatui/templates/tree/main/event-driven-async/template)

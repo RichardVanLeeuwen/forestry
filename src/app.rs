@@ -1,12 +1,16 @@
-use crossterm::event::{KeyEvent, KeyEventKind};
-use git2::Repository;
 use ratatui::Terminal;
+use ratatui::crossterm::event::{Event as CrossTermEvent, KeyEvent, KeyEventKind};
 use ratatui::prelude::Backend;
 use ratatui::widgets::ListState;
+use throbber_widgets_tui::ThrobberState;
+use tokio::sync::mpsc;
 use tui_input::Input;
+use tui_input::backend::crossterm::EventHandler as CrosstermEventHandler;
 
 use crate::event::{AppEvent, Event, EventHandler};
-use crate::git::{get_branches, get_repo, get_worktrees};
+use crate::git::{
+    create_worktree, fetch_repo, get_branches, get_root_location, get_worktrees, remove_worktree,
+};
 use crate::keymapping::mapkey;
 use crate::ui::ui;
 
@@ -24,8 +28,8 @@ pub enum CurrentlyCreating {
 pub struct App {
     pub running: bool,
     pub events: EventHandler,
+    pub root_location: String,
     pub current_screen: CurrentScreen,
-    pub root: Repository,
     pub branch_name: String,
     pub branch_input: Input,
     pub branch_list: BranchList,
@@ -33,23 +37,29 @@ pub struct App {
     pub tree_list: TreeList,
     pub creating: Option<CurrentlyCreating>,
     pub ask_force_delete: bool,
+    pub del_op_sender: mpsc::UnboundedSender<tokio::sync::oneshot::Receiver<bool>>,
+    pub deletion_in_progress: bool,
+    pub throbber_state: throbber_widgets_tui::ThrobberState,
 }
 
 impl Default for App {
     fn default() -> Self {
-        let root = get_repo();
+        let (sender, receiver) = mpsc::unbounded_channel();
         Self {
             running: true,
-            events: EventHandler::new(),
+            events: EventHandler::new(receiver),
+            root_location: get_root_location(),
             current_screen: CurrentScreen::Main,
-            branch_name: "".to_string(),
+            branch_name: String::new(),
             branch_input: Input::default(),
-            branch_list: BranchList::new(&root),
+            branch_list: BranchList::new(),
             worktree_location: Input::default(),
-            tree_list: TreeList::new(&root),
+            tree_list: TreeList::new(),
             creating: None,
-            root,
             ask_force_delete: false,
+            del_op_sender: sender,
+            deletion_in_progress: false,
+            throbber_state: ThrobberState::default(),
         }
     }
 }
@@ -61,14 +71,14 @@ impl App {
 
     pub async fn run<B: Backend>(mut self, mut terminal: Terminal<B>) -> color_eyre::Result<()> {
         while self.running {
-            terminal.draw(|frame| ui(frame, &mut self));
+            let _ = terminal.draw(|frame| ui(frame, &mut self));
             match self.events.next().await? {
                 Event::Tick => self.tick(),
                 Event::Crossterm(event) => match event {
-                    crossterm::event::Event::Key(key_event)
+                    ratatui::crossterm::event::Event::Key(key_event)
                         if key_event.kind == KeyEventKind::Press =>
                     {
-                        self.handle_key_events(key_event)?
+                        self.handle_key_events(key_event, event)?
                     }
                     _ => {}
                 },
@@ -76,17 +86,36 @@ impl App {
                     AppEvent::Quit => self.quit(),
                     AppEvent::TreelistUp => self.treelist_up(),
                     AppEvent::TreelistDown => self.treelist_down(),
+                    AppEvent::EnterCreating => self.enter_creating(),
+                    AppEvent::ExitCreating => self.exit_creating(),
+                    AppEvent::SelectBranchname => self.select_branchname(),
+                    AppEvent::BranchListUp => self.branchlist_up(),
+                    AppEvent::BranchListDown => self.branchlist_down(),
+                    AppEvent::TypeBranchName(key_event) => self.type_branch_name(key_event),
+                    AppEvent::SelectLocation => self.select_location(),
                     AppEvent::CreateTree => self.create_tree(),
-                    AppEvent::DeleteTree => self.delete_tree(),
+                    AppEvent::EnterDeleting => self.enter_deleting(),
+                    AppEvent::ForceDeleteTree => self.delete_tree(true),
+                    AppEvent::CancelDeleting => self.cancel_deleting(),
+                    AppEvent::DeleteTree => self.delete_tree(false),
                 },
+                Event::WorktreeDeleted(success) => self.after_worktree_deleted(success),
             }
         }
         Ok(())
     }
 
-    pub fn handle_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
-        mapkey(self, key_event.code);
+    pub fn handle_key_events(
+        &mut self,
+        key_event: KeyEvent,
+        event: CrossTermEvent,
+    ) -> color_eyre::Result<()> {
+        mapkey(self, key_event.code, event);
         Ok(())
+    }
+
+    pub fn tick(&mut self) {
+        self.throbber_state.calc_next();
     }
 
     fn quit(&mut self) {
@@ -101,32 +130,144 @@ impl App {
         self.tree_list.state.select_next();
     }
 
-    fn create_tree(&mut self) {
+    fn enter_creating(&mut self) {
         self.creating = Some(CurrentlyCreating::Branch);
         self.current_screen = CurrentScreen::Creating;
         self.branch_input = Input::default();
     }
 
-    fn delete_tree(&mut self) {
+    fn exit_creating(&mut self) {
+        if let Some(creating) = &self.creating {
+            match creating {
+                CurrentlyCreating::Branch => {
+                    self.creating = None;
+                    self.current_screen = CurrentScreen::Main;
+                }
+                CurrentlyCreating::Location => {
+                    self.creating = Some(CurrentlyCreating::Branch);
+                }
+            }
+        }
+    }
+
+    fn select_branchname(&mut self) {
+        let branch_name = if self.branch_list.state.selected().unwrap() == 0 {
+            self.branch_input.value()
+        } else {
+            self.branch_list
+                .items
+                .iter()
+                .filter(|b| b.contains(self.branch_input.value()))
+                .take(self.branch_list.state.selected().unwrap())
+                .last()
+                .unwrap()
+        };
+        self.worktree_location = Input::default().with_value(format!("../{}", branch_name));
+        self.branch_name = branch_name.to_string();
+        self.creating = Some(CurrentlyCreating::Location);
+    }
+
+    fn branchlist_up(&mut self) {
+        self.branch_list.state.select_previous();
+    }
+
+    fn branchlist_down(&mut self) {
+        self.branch_list.state.select_next();
+    }
+
+    fn type_branch_name(&mut self, key_event: CrossTermEvent) {
+        if let Some(creating) = &self.creating {
+            match creating {
+                CurrentlyCreating::Branch => {
+                    self.branch_input.handle_event(&key_event);
+                }
+                CurrentlyCreating::Location => {
+                    self.worktree_location.handle_event(&key_event);
+                }
+            };
+        }
+    }
+
+    fn select_location(&mut self) {
+        let branch_name = if self.branch_list.state.selected().unwrap() == 0 {
+            self.branch_input.value()
+        } else {
+            self.branch_list
+                .items
+                .iter()
+                .filter(|b| b.contains(self.branch_input.value()))
+                .take(self.branch_list.state.selected().unwrap())
+                .last()
+                .unwrap()
+        };
+        self.worktree_location = Input::default().with_value(format!("../{}", branch_name));
+        self.branch_name = branch_name.to_string();
+        self.creating = Some(CurrentlyCreating::Location);
+    }
+
+    fn create_tree(&mut self) {
+        let branch_input = self.branch_input.value_and_reset();
+        let worktree_location = self.worktree_location.value_and_reset();
+        create_worktree(worktree_location, Some(branch_input));
+        self.tree_list = TreeList::new();
+        self.creating = None;
+        self.current_screen = CurrentScreen::Main;
+    }
+
+    fn enter_deleting(&mut self) {
         self.current_screen = CurrentScreen::Deleting;
     }
 
-    pub fn tick(&self) {}
-}
+    fn refresh_branchlist(&mut self) {
+        self.tree_list = TreeList::new();
+    }
 
-pub struct ListTree {
-    pub location: String,
-    pub name: String,
+    fn cancel_deleting(&mut self) {
+        self.current_screen = CurrentScreen::Main;
+        self.ask_force_delete = false;
+    }
+
+    fn delete_tree(&mut self, force: bool) {
+        self.deletion_in_progress = true;
+        let tree_name = self
+            .tree_list
+            .items
+            .get(self.tree_list.state.selected().unwrap())
+            .unwrap()
+            .clone();
+        // create a oneshot channel to be able to signal when deleting is done
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        // send the receiver to the EventTask
+        let _ = self.del_op_sender.send(rx);
+        tokio::task::spawn_blocking(move || {
+            // delete the worktree
+            let result = remove_worktree(&tree_name, force);
+            // send message that deleting is done
+            let _ = tx.send(result);
+        });
+    }
+
+    fn after_worktree_deleted(&mut self, success: bool) {
+        if success {
+            fetch_repo();
+            self.refresh_branchlist();
+            self.current_screen = CurrentScreen::Main;
+            self.ask_force_delete = false;
+        } else {
+            self.ask_force_delete = true;
+        }
+        self.deletion_in_progress = false;
+    }
 }
 
 pub struct TreeList {
-    pub items: Vec<ListTree>,
+    pub items: Vec<String>,
     pub state: ListState,
 }
 
 impl TreeList {
-    pub fn new(repo: &Repository) -> TreeList {
-        let list_trees = get_worktrees(repo);
+    pub fn new() -> TreeList {
+        let list_trees = get_worktrees();
         let mut state = ListState::default();
         state.select_first();
         TreeList {
@@ -142,8 +283,8 @@ pub struct BranchList {
 }
 
 impl BranchList {
-    pub fn new(repo: &Repository) -> BranchList {
-        let branches = get_branches(repo);
+    pub fn new() -> BranchList {
+        let branches = get_branches();
         let mut state = ListState::default();
         state.select_first();
         BranchList {
