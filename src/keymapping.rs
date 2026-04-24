@@ -32,7 +32,7 @@ pub fn mapkey(app: &mut App, key: KeyCode, event: CrosstermEvent) {
                 if let Some(creating) = &app.creating {
                     match creating {
                         CurrentlyCreating::Branch => {
-                            app.events.send(AppEvent::SelectLocation);
+                            app.events.send(AppEvent::SelectBranchname);
                         }
                         CurrentlyCreating::Location => {
                             app.events.send(AppEvent::CreateTree);

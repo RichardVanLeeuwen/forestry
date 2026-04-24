@@ -92,7 +92,6 @@ impl App {
                     AppEvent::BranchListUp => self.branchlist_up(),
                     AppEvent::BranchListDown => self.branchlist_down(),
                     AppEvent::TypeBranchName(key_event) => self.type_branch_name(key_event),
-                    AppEvent::SelectLocation => self.select_location(),
                     AppEvent::CreateTree => self.create_tree(),
                     AppEvent::EnterDeleting => self.enter_deleting(),
                     AppEvent::ForceDeleteTree => self.delete_tree(true),
@@ -161,8 +160,11 @@ impl App {
                 .take(self.branch_list.state.selected().unwrap())
                 .last()
                 .unwrap()
+                .split('/')
+                .last()
+                .unwrap()
         };
-        self.worktree_location = Input::default().with_value(format!("../{}", branch_name));
+        self.worktree_location = Input::default().with_value(format!("../{branch_name}"));
         self.branch_name = branch_name.to_string();
         self.creating = Some(CurrentlyCreating::Location);
     }
@@ -188,27 +190,10 @@ impl App {
         }
     }
 
-    fn select_location(&mut self) {
-        let branch_name = if self.branch_list.state.selected().unwrap() == 0 {
-            self.branch_input.value()
-        } else {
-            self.branch_list
-                .items
-                .iter()
-                .filter(|b| b.contains(self.branch_input.value()))
-                .take(self.branch_list.state.selected().unwrap())
-                .last()
-                .unwrap()
-        };
-        self.worktree_location = Input::default().with_value(format!("../{}", branch_name));
-        self.branch_name = branch_name.to_string();
-        self.creating = Some(CurrentlyCreating::Location);
-    }
-
     fn create_tree(&mut self) {
-        let branch_input = self.branch_input.value_and_reset();
+        self.branch_input.value_and_reset();
         let worktree_location = self.worktree_location.value_and_reset();
-        create_worktree(worktree_location, Some(branch_input));
+        create_worktree(worktree_location, std::mem::take(&mut self.branch_name));
         self.tree_list = TreeList::new();
         self.creating = None;
         self.current_screen = CurrentScreen::Main;

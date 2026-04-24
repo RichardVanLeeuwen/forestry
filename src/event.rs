@@ -26,7 +26,6 @@ pub enum AppEvent {
     BranchListUp,
     BranchListDown,
     TypeBranchName(CrosstermEvent),
-    SelectLocation,
     CreateTree,
     EnterDeleting,
     ForceDeleteTree,
