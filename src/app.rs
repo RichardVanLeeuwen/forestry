@@ -9,7 +9,8 @@ use tui_input::backend::crossterm::EventHandler as CrosstermEventHandler;
 
 use crate::event::{AppEvent, Event, EventHandler};
 use crate::git::{
-    create_worktree, fetch_repo, get_branches, get_root_location, get_worktrees, remove_worktree,
+    Branch, create_worktree, fetch_repo, get_branches, get_root_location, get_worktrees,
+    remove_worktree,
 };
 use crate::keymapping::mapkey;
 use crate::ui::ui;
@@ -150,19 +151,23 @@ impl App {
     }
 
     fn select_branchname(&mut self) {
-        let branch_name = if self.branch_list.state.selected().unwrap() == 0 {
+        let selected_branch_index = self.branch_list.state.selected().unwrap();
+        let branch_name = if selected_branch_index == 0 {
             self.branch_input.value()
         } else {
-            self.branch_list
+            &self
+                .branch_list
                 .items
                 .iter()
+                .map(|b| b.name.clone())
                 .filter(|b| b.contains(self.branch_input.value()))
-                .take(self.branch_list.state.selected().unwrap())
+                .take(selected_branch_index)
                 .last()
                 .unwrap()
                 .split('/')
                 .last()
                 .unwrap()
+                .to_string()
         };
         self.worktree_location = Input::default().with_value(format!("../{branch_name}"));
         self.branch_name = branch_name.to_string();
@@ -263,7 +268,7 @@ impl TreeList {
 }
 
 pub struct BranchList {
-    pub items: Vec<String>,
+    pub items: Vec<Branch>,
     pub state: ListState,
 }
 

@@ -34,7 +34,7 @@ pub fn render_branch_list(frame: &mut Frame, app: &mut App, chunk: Rect) {
     let mut list_items = Vec::<ListItem>::new();
     for tree in &app.tree_list.items {
         list_items.push(ListItem::new(Line::from(Span::styled(
-            shorten_home(get_path_from_tree(tree)),
+            shorten_home(&get_path_from_tree(tree)),
             LIST_ITEM_STYLE,
         ))));
     }

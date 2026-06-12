@@ -38,10 +38,10 @@ pub fn render_branch_input_popup(frame: &mut Frame, app: &mut App) {
     app.branch_list
         .items
         .iter()
-        .filter(|b| b.contains(content_text))
+        .filter(|b| b.name.contains(content_text))
         .for_each(|branch| {
             list_items.push(ListItem::new(Line::from(Span::styled(
-                shorten_home(branch),
+                shorten_home(&branch.name),
                 LIST_ITEM_STYLE,
             ))))
         });
