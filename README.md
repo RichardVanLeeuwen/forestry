@@ -9,5 +9,8 @@ Git worktrees quickly became my favorite git function!
 ## Why forestry?
 I'm decently skilled with the terminal, but not everyone is. Forestry is an attempt to make the power of worktrees more accessible to people who don't live in the terminal.
 
+## Git hook: post-checkout 
+[Git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) are scripts that git runs at certain moments. The post-checkout hook is exceptionally useful with Forestry. A post-checkout hook will run whenever a branch is checked out, which happens on worktree creation, and we can check if it is on creation in the script. See [the example hook](./post-checkout.sample).
+
 ## Sources
 [Event driven architecture](https://github.com/ratatui/templates/tree/main/event-driven-async/template)

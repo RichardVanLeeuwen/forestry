@@ -1,0 +1,23 @@
+#!/bin/bash
+
+###
+# To use this, copy it to .git/hooks in the main worktree and rename it "post-checkout". # Then set executable with `chmod +x post-checkout`.
+###
+
+# The second param is the commit hash of the previously checked out commit. In case of worktree creation there is no previously checked out commit, so this hash is used.
+if [[ "$1" == "0000000000000000000000000000000000000000" ]]; then
+  # Get the path to the main worktree
+  basePath=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+	paths=(private_build_settings.cfg "private editor config.js")
+
+	for path in "${paths[@]}"; do
+    # Copy the given files to the new linked worktree
+		cp "$basePath/$path" "$(pwd)/$path"
+	done
+
+  # Install dependencies
+  npm install
+
+  # Build internal dependencies
+  npm build internal_dependency
+fi
