@@ -5,6 +5,7 @@ use crate::app::App;
 pub mod app;
 pub mod event;
 pub mod git;
+pub mod keyhints;
 pub mod keymapping;
 pub mod regex;
 pub mod styles;

@@ -1,9 +1,9 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout},
-    style::Style,
+    symbols,
     text::Text,
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Paragraph},
 };
 
 use crate::{
@@ -12,11 +12,13 @@ use crate::{
     ui::{
         creation_popup::{render_branch_input_popup, render_location_input_popup},
         delete_popup::render_delete_popup,
+        keylist::render_keylist,
         main_screen::{render_branch_list, render_root_location},
     },
 };
 mod creation_popup;
 mod delete_popup;
+mod keylist;
 mod main_screen;
 mod util;
 
@@ -27,14 +29,12 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
             Constraint::Length(3),
             Constraint::Length(2),
             Constraint::Min(2),
-            Constraint::Length(5),
+            Constraint::Length(4),
         ])
         .split(frame.area());
 
     // render the title
-    let title_block = Block::default()
-        .borders(Borders::ALL)
-        .style(Style::default());
+    let title_block = Block::bordered().border_set(symbols::border::DOUBLE);
     let title = Paragraph::new(Text::styled(
         "Forestry, manage your git worktree forest",
         TITLE_STYLE,
@@ -56,4 +56,6 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
     if let CurrentScreen::Deleting = app.current_screen {
         render_delete_popup(frame, app);
     }
+
+    render_keylist(frame, app, chunks[3]);
 }
