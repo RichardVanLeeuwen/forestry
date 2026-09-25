@@ -1,7 +1,8 @@
 [package]
 name = "forestry"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
+repository = "https://github.com/RichardVanLeeuwen/forestry"
 
 [dependencies]
 auth-git2 = "0.6"
@@ -17,3 +18,8 @@ tokio-util = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tui-input = "0.15"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
