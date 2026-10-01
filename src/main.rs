@@ -1,6 +1,6 @@
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::app::App;
+use crate::{app::App, git::get_root_location};
 
 pub mod app;
 pub mod event;
@@ -27,6 +27,13 @@ async fn main() -> color_eyre::Result<()> {
         crossterm::terminal::disable_raw_mode().unwrap();
         original_hook(panic_info);
     }));
+    let repository_root = match get_root_location() {
+        Ok(root) => root,
+        Err(e) => {
+            println!("{e}");
+            std::process::exit(1);
+        }
+    };
 
     // Logging
     init_logging();
@@ -35,7 +42,7 @@ async fn main() -> color_eyre::Result<()> {
     // Hide the normal terminal
     let terminal = ratatui::init();
     // Run the app
-    let result = App::new().run(terminal).await;
+    let result = App::new(repository_root).run(terminal).await;
     // Restore the terminal
     ratatui::restore();
 

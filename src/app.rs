@@ -9,8 +9,7 @@ use tui_input::backend::crossterm::EventHandler as CrosstermEventHandler;
 
 use crate::event::{AppEvent, Event, EventHandler};
 use crate::git::{
-    Branch, create_worktree, fetch_repo, get_branches, get_root_location, get_worktrees,
-    remove_worktree,
+    Branch, create_worktree, fetch_repo, get_branches, get_worktrees, remove_worktree,
 };
 use crate::keymapping::mapkey;
 use crate::ui::ui;
@@ -43,13 +42,13 @@ pub struct App {
     pub throbber_state: throbber_widgets_tui::ThrobberState,
 }
 
-impl Default for App {
-    fn default() -> Self {
+impl App {
+    pub fn new(root_location: String) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         Self {
             running: true,
             events: EventHandler::new(receiver),
-            root_location: get_root_location(),
+            root_location: root_location,
             current_screen: CurrentScreen::Main,
             branch_name: String::new(),
             branch_input: Input::default(),
@@ -62,12 +61,6 @@ impl Default for App {
             deletion_in_progress: false,
             throbber_state: ThrobberState::default(),
         }
-    }
-}
-
-impl App {
-    pub fn new() -> Self {
-        Self::default()
     }
 
     pub async fn run<B: Backend>(mut self, mut terminal: Terminal<B>) -> color_eyre::Result<()> {

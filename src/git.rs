@@ -42,20 +42,27 @@ fn get_branch_info_from_reflog_string(reflog: &String) -> (String, Option<String
     (name, remote)
 }
 
-pub fn get_root_location() -> String {
-    let command = Command::new("git")
+pub fn get_root_location() -> Result<String, String> {
+    let output = Command::new("git")
         .arg("rev-parse")
         .arg("--path-format=absolute")
         .arg("--git-common-dir")
         .output()
-        .expect("Could not find .git dir of repository");
-    let mut line = String::from_utf8_lossy(&command.stdout)
+        .map_err(|e| format!("Couldn't execute git: {e}"))?;
+
+    if !output.status.success() {
+        return Err(
+            "Current directory is not part of a git repo. Unable to start Forestry.".to_string(),
+        );
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let git_dir = stdout
         .lines()
         .next()
-        .unwrap()
-        .to_string();
-    line.truncate(line.len() - 5);
-    line
+        .ok_or("Unexpected empty output from git.")?;
+
+    Ok(git_dir.strip_suffix("/.git").unwrap_or(git_dir).to_string())
 }
 
 pub fn get_worktrees() -> Vec<String> {
