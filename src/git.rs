@@ -35,10 +35,7 @@ fn get_branch_info_from_reflog_string(reflog: &String) -> (String, Option<String
     } else {
         None
     };
-    let name = iter
-        .next()
-        .expect("There should be a branch name")
-        .to_string();
+    let name = iter.collect::<Vec<_>>().join("/");
     (name, remote)
 }
 
